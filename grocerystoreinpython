@@ -1,4 +1,13 @@
-items = {
+import json
+from typing import Dict
+
+ITEMS_FILE = "items.json"
+CART_FILE = "cart.json"
+DISCOUNT_THRESHOLD = 500  # INR
+DISCOUNT_PERCENT = 10      # %
+
+# ----------------- Data -----------------
+items: Dict[str, int] = {
     "apple": 50,
     "banana": 10,
     "orange": 20,
@@ -7,89 +16,155 @@ items = {
     "eggs": 5
 }
 
-cart = {}
+cart: Dict[str, int] = {}
 
-def view_items():
-    print("\nAvailable Items:")
-    for item, price in items.items():
-        print(f"{item.capitalize()} - {price} INR per unit")
+# ----------------- Helper Functions -----------------
+def save_cart() -> None:
+    with open(CART_FILE, "w") as f:
+        json.dump(cart, f, indent=4)
 
-def add_to_cart():
-    item_name = input("Enter item name to add to cart: ").lower()
-    if item_name in items:
-        quantity = int(input(f"Enter quantity of {item_name}: "))
-        if quantity > 0:
-            if item_name in cart:
-                cart[item_name] += quantity
-            else:
-                cart[item_name] = quantity
-            print(f"{quantity} {item_name}(s) added to cart.")
-        else:
-            print("Quantity should be greater than zero.")
-    else:
+def load_cart() -> None:
+    global cart
+    try:
+        with open(CART_FILE, "r") as f:
+            cart = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        cart = {}
+
+# ----------------- Store Functions -----------------
+def view_items() -> None:
+    if not items:
+        print("No items available.")
+        return
+
+    print("\nAvailable Items (sorted by name):")
+    for item, price in sorted(items.items()):
+        print(f"{item.capitalize():<10} - {price} INR per unit")
+
+def view_items_sorted_by_price() -> None:
+    if not items:
+        print("No items available.")
+        return
+
+    print("\nAvailable Items (sorted by price):")
+    for item, price in sorted(items.items(), key=lambda x: x[1]):
+        print(f"{item.capitalize():<10} - {price} INR per unit")
+
+def add_to_cart() -> None:
+    item_name = input("Enter item name to add to cart: ").strip().lower()
+    if item_name not in items:
         print("Item not available!")
+        return
 
-def remove_from_cart():
+    try:
+        quantity = int(input(f"Enter quantity of {item_name}: ").strip())
+        if quantity <= 0:
+            print("Quantity should be greater than zero.")
+            return
+    except ValueError:
+        print("Invalid quantity! Please enter a number.")
+        return
+
+    cart[item_name] = cart.get(item_name, 0) + quantity
+    save_cart()
+    print(f"{quantity} {item_name}(s) added to cart.")
+
+def remove_from_cart() -> None:
     if not cart:
         print("Cart is empty!")
         return
-    item_name = input("Enter item name to remove: ").lower()
-    if item_name in cart:
-        quantity = int(input(f"Enter quantity to remove: "))
-        if quantity >= cart[item_name]:
-            del cart[item_name]
-            print(f"{item_name} removed from cart.")
-        else:
-            cart[item_name] -= quantity
-            print(f"{quantity} {item_name}(s) removed from cart.")
-    else:
-        print("Item not in cart!")
 
-def view_cart():
+    item_name = input("Enter item name to remove: ").strip().lower()
+    if item_name not in cart:
+        print("Item not in cart!")
+        return
+
+    try:
+        quantity = int(input(f"Enter quantity to remove: ").strip())
+        if quantity <= 0:
+            print("Quantity should be greater than zero.")
+            return
+    except ValueError:
+        print("Invalid quantity! Please enter a number.")
+        return
+
+    if quantity >= cart[item_name]:
+        del cart[item_name]
+        print(f"{item_name} removed from cart.")
+    else:
+        cart[item_name] -= quantity
+        print(f"{quantity} {item_name}(s) removed from cart.")
+
+    save_cart()
+
+def view_cart() -> None:
     if not cart:
         print("Your cart is empty!")
         return
+
     print("\nYour Cart:")
     total = 0
     for item, qty in cart.items():
         cost = items[item] * qty
         total += cost
-        print(f"{item.capitalize()} x {qty} = {cost} INR")
-    print(f"Total Bill: {total} INR")
+        print(f"{item.capitalize():<10} x {qty:<3} = {cost} INR")
 
-def checkout():
+    if total >= DISCOUNT_THRESHOLD:
+        discount = total * DISCOUNT_PERCENT / 100
+        final_total = total - discount
+        print(f"\nSubtotal: {total} INR")
+        print(f"Discount: {DISCOUNT_PERCENT}% (-{discount} INR)")
+        print(f"Total Bill: {final_total} INR")
+    else:
+        print(f"Total Bill: {total} INR")
+
+def checkout() -> None:
     if not cart:
         print("Cart is empty! Add items before checkout.")
         return
-    view_cart()
-    print("Thank you for shopping! Please visit again.")
-    cart.clear()
 
-def main():
+    print("\n=== Checkout ===")
+    view_cart()
+    print("\nThank you for shopping! Please visit again.")
+    cart.clear()
+    save_cart()
+
+# ----------------- Main Menu -----------------
+def main() -> None:
+    load_cart()
+
+    menu_options = {
+        "1": view_items,
+        "2": view_items_sorted_by_price,
+        "3": add_to_cart,
+        "4": remove_from_cart,
+        "5": view_cart,
+        "6": checkout,
+        "7": lambda: print("Exiting store. Goodbye!")
+    }
+
     while True:
         print("\n=== Grocery Store Menu ===")
-        print("1. View Items")
-        print("2. Add to Cart")
-        print("3. Remove from Cart")
-        print("4. View Cart")
-        print("5. Checkout")
-        print("6. Exit")
-        choice = input("Enter your choice: ")
+        print("1. View Items (sorted by name)")
+        print("2. View Items (sorted by price)")
+        print("3. Add to Cart")
+        print("4. Remove from Cart")
+        print("5. View Cart")
+        print("6. Checkout")
+        print("7. Exit")
 
-        if choice == "1":
-            view_items()
-        elif choice == "2":
-            add_to_cart()
-        elif choice == "3":
-            remove_from_cart()
-        elif choice == "4":
-            view_cart()
-        elif choice == "5":
-            checkout()
-        elif choice == "6":
-            print("Exiting store. Goodbye!")
-            break
+        choice = input("Enter your choice: ").strip()
+        action = menu_options.get(choice)
+
+        if action:
+            action()
+            if choice == "7":
+                break
         else:
+            print("Invalid choice! Please try again.")
+
+if __name__ == "__main__":
+    main()        else:
             print("Invalid choice! Please try again.")
 
 if __name__ == "__main__":
