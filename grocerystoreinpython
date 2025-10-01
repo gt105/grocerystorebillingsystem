@@ -1,94 +1,158 @@
-items = {
-    "apple": 50,
-    "banana": 10,
-    "orange": 20,
-    "milk": 40,
-    "bread": 35,
-    "eggs": 5
+import json
+from typing import Dict, List
+
+CART_FILE = "cart.json"
+DISCOUNT_THRESHOLD = 500  # INR
+DISCOUNT_PERCENT = 10      # %
+
+# ----------------- Store Data -----------------
+items: Dict[str, Dict] = {
+    "apple": {"price": 50, "category": "Fruits"},
+    "banana": {"price": 10, "category": "Fruits"},
+    "orange": {"price": 20, "category": "Fruits"},
+    "milk": {"price": 40, "category": "Dairy"},
+    "bread": {"price": 35, "category": "Bakery"},
+    "eggs": {"price": 5, "category": "Dairy"}
 }
 
-cart = {}
+cart: Dict[str, int] = {}
 
-def view_items():
+# ----------------- Helper Functions -----------------
+def save_cart() -> None:
+    with open(CART_FILE, "w") as f:
+        json.dump(cart, f, indent=4)
+
+def load_cart() -> None:
+    global cart
+    try:
+        with open(CART_FILE, "r") as f:
+            cart = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        cart = {}
+
+# ----------------- Store Functions -----------------
+def view_items_by_category(category: str = None) -> None:
+    """View all items or filter by category."""
     print("\nAvailable Items:")
-    for item, price in items.items():
-        print(f"{item.capitalize()} - {price} INR per unit")
+    filtered_items = {name: data for name, data in items.items() if category is None or data["category"].lower() == category.lower()}
+    if not filtered_items:
+        print("No items found.")
+        return
+    for name, data in sorted(filtered_items.items()):
+        print(f"{name.capitalize():<10} - {data['price']} INR - Category: {data['category']}")
 
-def add_to_cart():
-    item_name = input("Enter item name to add to cart: ").lower()
-    if item_name in items:
-        quantity = int(input(f"Enter quantity of {item_name}: "))
-        if quantity > 0:
-            if item_name in cart:
-                cart[item_name] += quantity
-            else:
-                cart[item_name] = quantity
-            print(f"{quantity} {item_name}(s) added to cart.")
-        else:
-            print("Quantity should be greater than zero.")
+def search_item() -> None:
+    """Search item by name."""
+    query = input("Enter item name to search: ").strip().lower()
+    results = {name: data for name, data in items.items() if query in name.lower()}
+    if results:
+        print("\nSearch Results:")
+        for name, data in results.items():
+            print(f"{name.capitalize():<10} - {data['price']} INR - Category: {data['category']}")
     else:
-        print("Item not available!")
+        print("No matching items found.")
 
-def remove_from_cart():
+def add_to_cart() -> None:
+    item_name = input("Enter item name to add to cart: ").strip().lower()
+    if item_name not in items:
+        print("Item not available!")
+        return
+    try:
+        quantity = int(input(f"Enter quantity of {item_name}: ").strip())
+        if quantity <= 0:
+            print("Quantity should be greater than zero.")
+            return
+    except ValueError:
+        print("Invalid quantity! Please enter a number.")
+        return
+    cart[item_name] = cart.get(item_name, 0) + quantity
+    save_cart()
+    print(f"{quantity} {item_name}(s) added to cart.")
+
+def remove_from_cart() -> None:
     if not cart:
         print("Cart is empty!")
         return
-    item_name = input("Enter item name to remove: ").lower()
-    if item_name in cart:
-        quantity = int(input(f"Enter quantity to remove: "))
-        if quantity >= cart[item_name]:
-            del cart[item_name]
-            print(f"{item_name} removed from cart.")
-        else:
-            cart[item_name] -= quantity
-            print(f"{quantity} {item_name}(s) removed from cart.")
-    else:
+    item_name = input("Enter item name to remove: ").strip().lower()
+    if item_name not in cart:
         print("Item not in cart!")
+        return
+    try:
+        quantity = int(input(f"Enter quantity to remove: ").strip())
+        if quantity <= 0:
+            print("Quantity should be greater than zero.")
+            return
+    except ValueError:
+        print("Invalid quantity! Please enter a number.")
+        return
+    if quantity >= cart[item_name]:
+        del cart[item_name]
+        print(f"{item_name} removed from cart.")
+    else:
+        cart[item_name] -= quantity
+        print(f"{quantity} {item_name}(s) removed from cart.")
+    save_cart()
 
-def view_cart():
+def view_cart() -> None:
     if not cart:
         print("Your cart is empty!")
         return
     print("\nYour Cart:")
     total = 0
     for item, qty in cart.items():
-        cost = items[item] * qty
+        cost = items[item]["price"] * qty
         total += cost
-        print(f"{item.capitalize()} x {qty} = {cost} INR")
-    print(f"Total Bill: {total} INR")
+        print(f"{item.capitalize():<10} x {qty:<3} = {cost} INR")
+    if total >= DISCOUNT_THRESHOLD:
+        discount = total * DISCOUNT_PERCENT / 100
+        final_total = total - discount
+        print(f"\nSubtotal: {total} INR")
+        print(f"Discount: {DISCOUNT_PERCENT}% (-{discount} INR)")
+        print(f"Total Bill: {final_total} INR")
+    else:
+        print(f"Total Bill: {total} INR")
 
-def checkout():
+def checkout() -> None:
     if not cart:
         print("Cart is empty! Add items before checkout.")
         return
+    print("\n=== Checkout ===")
     view_cart()
-    print("Thank you for shopping! Please visit again.")
+    print("\nThank you for shopping! Please visit again.")
     cart.clear()
+    save_cart()
 
-def main():
+# ----------------- Main Menu -----------------
+def main() -> None:
+    load_cart()
+    menu_options = {
+        "1": lambda: view_items_by_category(),
+        "2": lambda: view_items_by_category(input("Enter category to filter (leave empty for all): ").strip() or None),
+        "3": search_item,
+        "4": add_to_cart,
+        "5": remove_from_cart,
+        "6": view_cart,
+        "7": checkout,
+        "8": lambda: print("Exiting store. Goodbye!")
+    }
+
     while True:
         print("\n=== Grocery Store Menu ===")
-        print("1. View Items")
-        print("2. Add to Cart")
-        print("3. Remove from Cart")
-        print("4. View Cart")
-        print("5. Checkout")
-        print("6. Exit")
-        choice = input("Enter your choice: ")
+        print("1. View All Items")
+        print("2. View Items by Category")
+        print("3. Search Item")
+        print("4. Add to Cart")
+        print("5. Remove from Cart")
+        print("6. View Cart")
+        print("7. Checkout")
+        print("8. Exit")
 
-        if choice == "1":
-            view_items()
-        elif choice == "2":
-            add_to_cart()
-        elif choice == "3":
-            remove_from_cart()
-        elif choice == "4":
-            view_cart()
-        elif choice == "5":
-            checkout()
-        elif choice == "6":
-            print("Exiting store. Goodbye!")
-            break
+        choice = input("Enter your choice: ").strip()
+        action = menu_options.get(choice)
+        if action:
+            action()
+            if choice == "8":
+                break
         else:
             print("Invalid choice! Please try again.")
 
